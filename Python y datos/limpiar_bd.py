@@ -10,7 +10,7 @@ try:
         print("🧹 Desactivando llaves foráneas y vaciando tablas...")
         connection.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
         
-        tablas = ['eventos', 'servicios', 'tipos_evento', 'ciudades', 'departamentos']
+        tablas = ['eventos', 'servicios', 'tipos_evento', 'ciudades', 'departamentos', 'usuarios', 'log_auditoria']
         for tabla in tablas:
             connection.execute(text(f"TRUNCATE TABLE {tabla};"))
             print(f"   -> Tabla '{tabla}' dejada en cero (IDs reiniciados).")
