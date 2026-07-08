@@ -11,8 +11,8 @@ import pymysql
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'ABC123',  # <--- Pon tu contraseña real de MySQL
-    'database': 'aguapacha',   # <--- Pon el nombre real de tu BD
+    'password': 'ABC123', 
+    'database': 'aguapacha',  
     'cursorclass': pymysql.cursors.DictCursor
 }
 
@@ -52,7 +52,6 @@ def iniciar_sesion():
         
         try:
             with conexion.cursor() as cursor:
-                # ⭐ CAMBIO: Ahora seleccionamos también id_usuario de la tabla usuarios
                 sql = "SELECT id_usuario, usuario, rol FROM usuarios WHERE usuario = %s AND contrasena = %s"
                 cursor.execute(sql, (usuario_input, contrasenia_input))
                 resultado = cursor.fetchone()
@@ -60,7 +59,7 @@ def iniciar_sesion():
                 if resultado:
                     print(f"\n✅ Credenciales correctas. Usuario verificado: {resultado['usuario']} (ID: {resultado['id_usuario']})")
                     conexion.close()
-                    return resultado  # Retorna el diccionario completo con id_usuario, usuario y rol
+                    return resultado  
                 else:
                     print("\n❌ Usuario o contraseña incorrectos.")
                     opcion = input("❓ ¿Desea volver a intentar el ingreso? (Yes/No): ").strip().lower()
@@ -108,8 +107,16 @@ def procesar_archivo_masivo(ruta_excel, id_usuario, usuario, rol):
     try:
         print("\n🔍 Sincronizando datos con la BD para control de duplicados...")
         with conexion.cursor() as cursor:
+            # CORRECCIÓN: Forzamos a MySQL a entregar la fecha y la hora en un formato estandarizado
             sql_duplicados = """
-                SELECT CONCAT(fecha, '|', hora_inicio, '|', contacto_ppal, '|', direccion, '|', id_tipo_evento, '|', id_servicio) AS llave 
+                SELECT CONCAT(
+                    DATE_FORMAT(fecha, '%Y-%m-%d'), '|', 
+                    TIME_FORMAT(hora_inicio, '%H:%i:%s'), '|', 
+                    contacto_ppal, '|', 
+                    direccion, '|', 
+                    id_tipo_evento, '|', 
+                    id_servicio
+                ) AS llave 
                 FROM eventos
             """
             cursor.execute(sql_duplicados)
@@ -141,7 +148,6 @@ def procesar_archivo_masivo(ruta_excel, id_usuario, usuario, rol):
                     if pd.isna(fecha_dt):
                         fecha_dt = pd.to_datetime(val_fecha, format='mixed', errors='coerce')
                     
-                    # Si después de ambos intentos sigue siendo inválido, levanta un error para ir al except
                     if pd.isna(fecha_dt):
                         raise ValueError()
                         
@@ -151,9 +157,29 @@ def procesar_archivo_masivo(ruta_excel, id_usuario, usuario, rol):
                     filas_con_error.append({**fila.to_dict(), 'Fila_Excel': num_fila, 'Motivo_Rechazo': error_msg})
                     continue
 
-            # 2. hora_inicio (Opcional)
+            # 2. hora_inicio (Opcional - Normalizado con segundos)
             val_hora = fila.get('hora_inicio')
-            hora_inicio = "00:00:00" if (es_vacio_absoluto(val_hora) or es_texto_na(val_hora)) else str(val_hora).strip()
+            if es_vacio_absoluto(val_hora) or es_texto_na(val_hora):
+                hora_limpia = "00:00:00"
+            else:
+                try:
+                    h_str = str(val_hora).strip()
+                    if '.' in h_str:
+                        h_str = h_str.split('.')[0]
+                    
+                    partes = h_str.split(':')
+                    if len(partes) == 2:  # HH:MM -> HH:MM:00
+                        hora_limpia = f"{partes[0].zfill(2)}:{partes[1].zfill(2)}:00"
+                    elif len(partes) >= 3:  # HH:MM:SS
+                        hora_limpia = f"{partes[0].zfill(2)}:{partes[1].zfill(2)}:{partes[2][:2].zfill(2)}"
+                    else:
+                        t_dt = pd.to_datetime(h_str, errors='coerce')
+                        if not pd.isna(t_dt):
+                            hora_limpia = t_dt.strftime('%H:%M:%S')
+                        else:
+                            hora_limpia = h_str
+                except Exception:
+                    hora_limpia = str(val_hora).strip()
 
             # 3. duracion (Opcional)
             val_duracion = fila.get('duracion')
@@ -248,15 +274,15 @@ def procesar_archivo_masivo(ruta_excel, id_usuario, usuario, rol):
                 filas_con_error.append({**fila.to_dict(), 'Fila_Excel': num_fila, 'Motivo_Rechazo': error_msg})
                 continue
 
-            # Control de Duplicados
-            llave_fila = f"{fecha_limpia}|{hora_inicio}|{contacto_ppal}|{direccion}|{id_tipo_evento}|{id_servicio}"
+            # CORRECCIÓN: Armamos la llave con fecha_limpia y hora_limpia para el control estricto de duplicados
+            llave_fila = f"{fecha_limpia}|{hora_limpia}|{contacto_ppal}|{direccion}|{id_tipo_evento}|{id_servicio}"
             if llave_fila in eventos_existentes:
                 error_msg = "Omitido: Ya existe un registro idéntico en la BD."
                 filas_con_error.append({**fila.to_dict(), 'Fila_Excel': num_fila, 'Motivo_Rechazo': error_msg})
                 continue
 
             registros_correctos.append((
-                fecha_limpia, hora_inicio, float(duracion), direccion, id_ciudad,
+                fecha_limpia, hora_limpia, float(duracion), direccion, id_ciudad,
                 contacto_ppal, contacto_sec_limpio, id_tipo_evento, id_servicio,
                 observaciones_limpias, valor_numerico
             ))
@@ -300,12 +326,10 @@ def procesar_archivo_masivo(ruta_excel, id_usuario, usuario, rol):
             
             cursor.execute("SET @carga_masiva = 0;")
             
-            # ⭐ CAMBIO: Inserción adaptada a la nueva estructura de 'log_auditoria'
             sql_log = """
                 INSERT INTO log_auditoria (id_usuario, accion)
                 VALUES (%s, %s)
             """
-            # Controlamos los caracteres string para que no superen el VARCHAR(100) de tu tabla
             detalle_accion = f"Carga masiva: {total_ok} Registros"[:100]
             cursor.execute(sql_log, (id_usuario, detalle_accion))
             
@@ -361,5 +385,4 @@ if __name__ == "__main__":
             sys.exit()
 
     archivo_a_procesar = seleccionar_archivo_visual()
-    # ⭐ CAMBIO: Pasamos el 'sesion['id_usuario']' al motor de procesamiento
     procesar_archivo_masivo(archivo_a_procesar, sesion['id_usuario'], sesion['usuario'], sesion['rol'])
