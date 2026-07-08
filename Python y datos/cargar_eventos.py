@@ -134,7 +134,18 @@ def procesar_archivo_masivo(ruta_excel, id_usuario, usuario, rol):
                 fecha_limpia = None
             else:
                 try:
-                    fecha_limpia = pd.to_datetime(val_fecha).date().strftime('%Y-%m-%d')
+                    # Primero intenta leer priorizando el día al inicio (dd-mm-yyyy o dd/mm/yyyy)
+                    fecha_dt = pd.to_datetime(val_fecha, dayfirst=True, errors='coerce')
+                    
+                    # Si no coincide o da NaT, intenta con el formato mixto (por ejemplo, si viene yyyy-mm-dd)
+                    if pd.isna(fecha_dt):
+                        fecha_dt = pd.to_datetime(val_fecha, format='mixed', errors='coerce')
+                    
+                    # Si después de ambos intentos sigue siendo inválido, levanta un error para ir al except
+                    if pd.isna(fecha_dt):
+                        raise ValueError()
+                        
+                    fecha_limpia = fecha_dt.date().strftime('%Y-%m-%d')
                 except Exception:
                     error_msg = f"Rechazado: El formato de fecha '{val_fecha}' es inválido."
                     filas_con_error.append({**fila.to_dict(), 'Fila_Excel': num_fila, 'Motivo_Rechazo': error_msg})
