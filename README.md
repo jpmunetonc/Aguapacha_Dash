@@ -17,7 +17,7 @@ Power BI & DAX: Modelado multidimensional (Tablas de hechos y dimensiones), crea
 
 2. Procesamiento e Inserción (Python): Scripts automatizados que realizan la limpieza de los datos, validación de integridad referencial (datos duplicados, no permitidos e informes de errores), actualización de maestros y ejecución de cargas masivas seguras hacia el motor de base de datos.
 
-3. Almacenamiento (SQL): Repositorio estructurado en MySQL optimizado para consultas rápidas sobre el histórico de contratos y servicios. (Allí se realizan vistas, procedimientos almacenados y funciones para optimizar procesos de consultas y unión enter tablas).
+3. Almacenamiento (SQL): Repositorio estructurado en MySQL optimizado para consultas rápidas sobre el histórico de contratos y servicios. (Allí se realizan vistas, procedimientos almacenados y funciones para optimizar procesos de consultas y unión entre tablas).
 
 4. Capa de Inteligencia de Negocios (Power BI): Conexión directa a la base de datos, modelado relacional y cálculo de métricas avanzadas mediante lenguaje DAX.
 
@@ -51,7 +51,7 @@ Análisis de Picos de Demanda: Revela de manera inmediata que los Sábados conce
 
 BD: Contiene los scripts de inicialización, definición de tablas de la base de datos (DDL) y scripts de consultas estructuradas.
 
-Python y datos: Incluye los desarrollos en Python encargados del pipeline de datos (carga masiva, sincronización de maestros y reseteo controlado de entornos), junto con las fuentes de datos utilizadas.
+Python y datos: Incluye los desarrollos en Python encargados del pipeline de datos (creación de datos, carga masiva, sincronización de maestros y reseteo controlado de entornos), junto con las fuentes de datos utilizadas. Nota: La creación de datos es un script que genera un archivo de Excel con N cantidad de datos para luego ser cargado en MySQL (Tener en cuenta limite de datos de Excel)
 
 Capturas informes: Contiene visuales de los reportes generados.
 
